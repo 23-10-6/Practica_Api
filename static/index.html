@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Inventario</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { padding: 10px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #218838; }
+        .btn-danger { background-color: #dc3545; }
+        .btn-danger:hover { background-color: #c82333; }
+        .btn-info { background-color: #17a2b8; margin-top: 20px;}
+        .btn-info:hover { background-color: #138496; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        #reportStatus { margin-top: 10px; font-weight: bold; color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gestor de Inventario</h1>
+        
+        <h2>Agregar Producto</h2>
+        <form id="productForm">
+            <div class="form-group">
+                <label>Nombre:</label>
+                <input type="text" id="name" required>
+            </div>
+            <div class="form-group">
+                <label>Precio:</label>
+                <input type="number" id="price" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>Stock:</label>
+                <input type="number" id="stock" required>
+            </div>
+            <button type="submit">Guardar Producto</button>
+        </form>
+
+        <h2>Lista de Productos</h2>
+        <button onclick="fetchProducts()" style="background-color: #007bff;">Refrescar Lista</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="productTableBody">
+                <!-- Los productos se cargarán aquí dinámicamente -->
+            </tbody>
+        </table>
+
+        <hr>
+        <h2>Prueba de Concurrencia</h2>
+        <p>Presiona el botón para simular un cálculo intensivo de CPU de 10 segundos en el servidor. Mientras procesa, puedes seguir agregando o refrescando la tabla de productos sin que la página o el servidor se congele.</p>
+        <button class="btn-info" onclick="generateReport()">Generar Proyección de Stock (Proceso Pesado)</button>
+        <p id="reportStatus"></p>
+    </div>
+
+    <script>
+        const API_URL = '/api/products';
+
+        // Cargar productos al iniciar
+        document.addEventListener('DOMContentLoaded', fetchProducts);
+
+        document.getElementById('productForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const product = {
+                name: document.getElementById('name').value,
+                price: parseFloat(document.getElementById('price').value),
+                stock: parseInt(document.getElementById('stock').value)
+            };
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(product)
+                });
+                
+                if (response.ok) {
+                    alert('Producto guardado');
+                    document.getElementById('productForm').reset();
+                    fetchProducts();
+                } else {
+                    const err = await response.json();
+                    alert('Error: ' + JSON.stringify(err));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        async function fetchProducts() {
+            try {
+                const response = await fetch(API_URL);
+                const products = await response.json();
+                const tbody = document.getElementById('productTableBody');
+                tbody.innerHTML = '';
+                
+                products.forEach(product => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${product.name}</td>
+                        <td>$${product.price}</td>
+                        <td>${product.stock}</td>
+                        <td>
+                            <button class="btn-danger" onclick="deleteProduct('${product.id}')">Eliminar</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error('Error fetching products:', error);
+            }
+        }
+
+        async function deleteProduct(id) {
+            if (confirm('¿Eliminar este producto?')) {
+                try {
+                    await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                    fetchProducts();
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            }
+        }
+
+        async function generateReport() {
+            const statusLabel = document.getElementById('reportStatus');
+            statusLabel.innerText = "Procesando cálculo pesado (10 segundos)... ¡Intenta refrescar la lista de productos mientras esperas!";
+            statusLabel.style.color = "orange";
+            
+            try {
+                const response = await fetch('/api/reports/projection', { method: 'POST' });
+                const result = await response.json();
+                statusLabel.innerText = result.message;
+                statusLabel.style.color = "green";
+            } catch (error) {
+                statusLabel.innerText = "Error generando el reporte.";
+                statusLabel.style.color = "red";
+            }
+        }
+    </script>
+</body>
+</html>
